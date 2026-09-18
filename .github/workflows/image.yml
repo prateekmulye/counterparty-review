@@ -19,6 +19,7 @@ jobs:
     timeout-minutes: 30
     env:
       IMAGE: ghcr.io/prateekmulye/counterparty-review
+      POSTGRES_IMAGE: postgres:17.11-bookworm@sha256:7bade6d532592ca8ce7ee32def7399dad2607c4ea5583839fc4352a095a11ea6
     steps:
       - name: Check out selected commit
         # actions/checkout v6.1.0; verified against the official repository tag.
@@ -35,6 +36,27 @@ jobs:
             --label "org.opencontainers.image.source=https://github.com/$GITHUB_REPOSITORY" \
             --label "org.opencontainers.image.revision=$GITHUB_SHA" \
             --tag "$IMAGE:$GITHUB_SHA" .
+
+      - name: Verify native runtime before publication
+        shell: bash
+        run: |
+          set -euo pipefail
+          test "$(uname -m)" = x86_64
+          docker pull --platform linux/amd64 "$POSTGRES_IMAGE"
+          python3 -B tests/check_runtime.py \
+            --app-image "$IMAGE:$GITHUB_SHA" \
+            --postgres-image "$POSTGRES_IMAGE" \
+            --output "$RUNNER_TEMP/counterparty-runtime.json"
+
+      - name: Report sanitized runtime receipt
+        if: always()
+        shell: bash
+        run: |
+          if test -f "$RUNNER_TEMP/counterparty-runtime.json"; then
+            cat "$RUNNER_TEMP/counterparty-runtime.json"
+          else
+            printf '%s\n' '{"passed":false,"receipt":"unavailable; runtime gate did not complete"}'
+          fi
 
       - name: Publish commit tag and report immutable digest
         shell: bash
