@@ -48,6 +48,8 @@ Phoenix forms → owner-scoped Ecto transaction → PostgreSQL + Oban
 - **Python agent** has at most two evidence-tool steps and three model calls per analysis. Its tools inspect supplied candidates and retrieve supplied policy text; they cannot browse arbitrary URLs or execute model-written code.
 - **Validation** checks references, exact rendered claims, identity conflicts and ambiguity in Python and again in Elixir. A model proposal never accepts a record. The user must decide against the current evidence revision.
 
+Name matching requires the complete normalized legal name. Without an explicit LEI, a terminal `AG` and `Aktiengesellschaft` are treated as equivalent; other aliases and partial names are unsupported. A matching registration ID cannot override an unsupported name, and unresolved ambiguity blocks a proposal. Inspect the source evidence and review the record manually before deciding.
+
 Replay creates another review using the saved evidence snapshot. It does not refresh GLEIF data. JSON exports contain the evidence, model outcome when requested, event history and human decision.
 
 ## AI and hosted configuration
