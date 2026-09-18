@@ -101,3 +101,26 @@ python3 -B -m unittest discover -s agent -p test_agent.py -v
 Tests cover ownership, lifecycle transactions, stale decisions, retention bounds, evidence validation and AI error contracts. Model doubles do not establish live-model accuracy.
 
 If PostgreSQL cannot connect, check the socket directory, port and role before rerunning setup. If no selectable candidate appears, inspect the recorded conflict or coverage limit rather than treating absence as proof. If AI is unavailable or abstains, inspect the source facts and make the decision manually.
+
+## Native runtime verification
+
+Run this from the application directory on native Linux x86_64 with Docker, Python 3 and OpenSSL. Both Linux amd64 images must already be local; replace `portfolio-counterparty:review` with your existing application image if needed. The harness does not build or pull images.
+
+```sh
+python3 -B tests/check_runtime.py \
+  --app-image portfolio-counterparty:review \
+  --postgres-image postgres:17.11-bookworm@sha256:7bade6d532592ca8ce7ee32def7399dad2607c4ea5583839fc4352a095a11ea6 \
+  --output /tmp/counterparty-runtime.json
+```
+
+The 12 checks use disposable containers, generated credentials and synthetic company records on an internal Docker network:
+
+- **Database and TLS (7):** database readiness, trusted CA and matching hostname, rejection of a wrong CA and wrong hostname, a successful connection after those rejections, release migrations and an idempotent migration rerun.
+- **HTTP and persistence (3):** application reads from the migrated database, owner isolation with hashed storage and owner-scoped idempotency, and records and ownership surviving an application restart.
+- **Runtime (2):** application database connections use TLS and no model-analysis jobs were requested.
+
+Success also requires the application to stay within its 256 MiB memory limit without OOM events under a 0.1 CPU limit, and removal of the harness-owned containers and network. The database and HTTP helper run outside the application's resource limits. The command exits zero on success and writes a sanitized JSON receipt.
+
+The manual `image.yml` workflow builds the image and runs this gate before publishing its commit tag. The saved receipt records all 12 checks passing in [CI run 35304327876](https://github.com/prateekmulye/counterparty-review/actions/runs/35304327876).
+
+This verifies a bounded synthetic runtime. It does not establish deployment, free-tier acceptance, public-provider database/TLS behavior, hosted inference, sustained capacity, backup restoration or retention expiry.
