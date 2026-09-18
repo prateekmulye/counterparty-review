@@ -1,0 +1,76 @@
+<.shell title={state(@run.state)}>
+  <header class="review-header">
+    <a class="back-link" href="/">← New review</a>
+    <p class="eyebrow">Company identity review</p>
+    <h1>{@run.record["name"]}</h1>
+    <p class="submitted">Jurisdiction: <strong>{country(@run.record["country"])}</strong><span>LEI: <span class="identifier">{value(@run.record["lei"])}</span></span></p>
+    <div class="review-status"><span class="status">{state(@run.state)}</span><span>Review expires {date(@run.expires_at)}</span></div>
+  </header>
+
+  <div :if={@error} role="alert" class="notice error"><h2>Action could not be completed</h2><p>{@error}</p><a href={path(@run)}>Reload the current review</a></div>
+  <div class={"notice state-notice state-#{@run.state}"} role="status"><p>{state_detail(@run.state)}</p><p :if={@run.state == "failed"}>{failure(@run.ai_error)}</p><div :if={pending?(@run)} class="actions"><a class="button secondary" href={path(@run)}>Refresh status</a><form action={path(@run, "/cancel")} method="post"><.tokens run={@run} csrf_token={@csrf_token} /><button class="button quiet" type="submit">Cancel this run</button></form></div></div>
+
+  <section class="review-section" aria-labelledby="evidence-title">
+    <div class="section-heading"><div class="heading-group"><span class="step" aria-hidden="true">01</span><h2 id="evidence-title">Registry evidence</h2></div><a :if={!pending?(@run)} href={path(@run)}>Refresh status</a></div>
+    <%= if evidence?(@run) do %>
+      <p class="section-lede">GLEIF · Retrieved {date(@run.source["retrieved_at"])}</p>
+      <div class="coverage-strip"><span><strong>{value(@run.source["returned_count"])}</strong> returned</span><span><strong>{value(@run.source["eligible_count"])}</strong> supported by the source filter</span><span><strong>{value(@run.source["shown_count"])}</strong> shown</span><span><strong>{value(@run.source["unsupported_count"])}</strong> excluded</span></div>
+      <p class="coverage-note"><strong :if={@run.source["truncated"]}>Results were cut off. </strong>At most 5 records are shown. This bounded lookup is not exhaustive. {@run.source["filter"]} Excluded forms are shown as counts only.</p>
+      <div :if={@run.candidates == []} class="empty-state"><h3>No records found in this snapshot.</h3><p>No supported records were retained. This does not establish that the company does not exist or lacks an LEI.</p><a href="/">Start a new review with a different input</a></div>
+      <article :for={candidate <- @run.candidates} id={"candidate-#{candidate["lei"]}"} class="paper evidence-card">
+        <div class="candidate-heading"><div><p class="eyebrow">Public source record</p><h3>{candidate["legal_name"]}</h3></div><span class={if candidate["acceptable"], do: "eligibility", else: "eligibility blocked"}>{if candidate["acceptable"], do: "Available for manual selection", else: "Selection blocked"}</span></div>
+        <dl class="facts"><div class="fact-wide"><dt>Legal Entity Identifier</dt><dd class="identifier">{value(candidate["lei"])}</dd></div><div><dt>Jurisdiction country</dt><dd>{value(country(candidate["country"]))}</dd></div><div><dt>Entity status</dt><dd>{value(candidate["entity_status"])}</dd></div><div><dt>LEI registration status</dt><dd>{value(candidate["registration_status"])}</dd></div></dl>
+        <ul class="reason-list"><li :for={reason_code <- candidate["reasons"]}>{reason(reason_code)}</li></ul>
+        <p class="hint">Selection reflects this edition's rules only. It does not establish verified identity or business validity.</p>
+        <div class="evidence-links"><a href={"https://api.gleif.org/api/v1/lei-records/#{candidate["lei"]}"} rel="noreferrer">GLEIF source record ↗</a></div>
+        <details><summary>Evidence details</summary><div class="details-body"><dl class="detail-list"><div><dt>Registration identifier</dt><dd>{value(candidate["registration_id"])}</dd></div><div><dt>Source jurisdiction</dt><dd>{value(source_details(@run, candidate["lei"])["entity_jurisdiction"])}</dd></div><div><dt>Legal form code</dt><dd>{value(source_details(@run, candidate["lei"])["legal_form_code"])}</dd></div><div><dt>Source last updated</dt><dd>{date(source_details(@run, candidate["lei"])["registration_last_update"])}</dd></div><div><dt>Retrieved</dt><dd>{date(candidate["retrieved_at"])}</dd></div><div><dt>Evidence ID</dt><dd class="identifier">{value(candidate["evidence_id"])}</dd></div><div><dt>Selected-field SHA-256</dt><dd class="identifier">{value(candidate["content_sha256"])}</dd></div></dl></div></details>
+      </article>
+      <details class="source-details"><summary>Source coverage and snapshot</summary><div class="details-body"><p>{value(@run.source["filter"])}</p><ul><li :for={form <- @run.source["supported_forms"] || []}>{form["country"]} · {form["code"]} · {form["name"]}</li></ul><dl class="detail-list"><div><dt>Snapshot ID</dt><dd class="identifier">{value(@run.source["snapshot_id"])}</dd></div><div><dt>Matching policy</dt><dd>{value(@run.source["matching_policy"])}</dd></div><div><dt>Country field</dt><dd>{value(@run.source["country_field"])}</dd></div><div><dt>Source response SHA-256</dt><dd class="identifier">{value(@run.source["response_sha256"])}</dd></div></dl><p><a href="https://www.gleif.org/en/meta/lei-data-terms-of-use" rel="noreferrer">GLEIF CC0 data terms</a>. Accuracy, completeness and continuous availability are not guaranteed.</p></div></details>
+    <% else %>
+      <div class="empty-state"><p>{if pending?(@run), do: "Source records will appear after retrieval.", else: "No source snapshot is available for this run."}</p><span>No demonstration records are substituted.</span></div>
+    <% end %>
+  </section>
+
+  <section class="review-section" aria-labelledby="ai-title">
+    <div class="section-heading"><div class="heading-group"><span class="step" aria-hidden="true">02</span><h2 id="ai-title">Optional AI review</h2></div><span class="subtle">Advisory only</span></div>
+    <div class="ai-panel"><h3>{ai_title(@run)}</h3>
+      <%= cond do %>
+        <% ai_error(@run) -> %><p>{failure(ai_error(@run))}</p><p class="hint">Operational failure, not a reasoned abstention. Code: <span class="identifier">{ai_error(@run)}</span></p>
+        <% @run.proposal && !pending?(@run) -> %>
+          <p :if={@run.proposal["status"] == "proposed"}><strong>{candidate_name(@run, @run.proposal["selected_lei"])}</strong>. Review the cited facts before deciding.</p>
+          <ul class="reason-list"><li :for={code <- @run.proposal["reason_codes"] || []}>{reason(code)}</li></ul>
+          <div :if={citations(@run) != []} class="citations"><p class="eyebrow">Inspect the cited evidence</p><ul><li :for={id <- citations(@run)}><a href={evidence_anchor(id)}>{citation_label(@run, id)}</a></li></ul></div>
+        <% pending?(@run) && ai_requested?(@run) -> %><p>Refresh the status to check for a result. Nothing is accepted automatically.</p>
+        <% ai_requested?(@run) -> %><p>No completed AI result is available for this run.</p>
+        <% true -> %><p>You can inspect records and decide without AI. {if hosted?(), do: "An explicit request sends this run’s saved public evidence to Cloudflare Workers AI. The shared daily allowance may limit availability.", else: "An explicit request sends only this run’s saved evidence to the local model."}</p>
+      <% end %>
+      <form :if={@run.state == "review_required" && evidence?(@run) && @run.candidates != []} action={path(@run, "/analyze")} method="post"><.tokens run={@run} csrf_token={@csrf_token} /><button class="button secondary" type="submit">{if ai_requested?(@run), do: "Request another AI review", else: "Request AI review"}</button></form>
+      <details :if={@run.proposal} class="ai-details"><summary>AI run details</summary><div class="details-body"><dl class="detail-list"><div><dt>Model</dt><dd>{value(get_in(@run.proposal, ["model", "name"]))}</dd></div><div><dt>Input tokens</dt><dd>{value(get_in(@run.proposal, ["usage", "input_tokens"]))}</dd></div><div><dt>Output tokens</dt><dd>{value(get_in(@run.proposal, ["usage", "output_tokens"]))}</dd></div><div><dt>Observed duration (ms)</dt><dd>{value(get_in(@run.proposal, ["usage", "wall_ms"]))}</dd></div></dl><p class="hint">Only recorded usage is shown. Missing measurements are not estimated.</p><ol><li :for={step <- @run.proposal["trace"] || []}><span class="identifier">{step["tool"]}</span> · <a href={evidence_anchor(step["evidence_id"])}>{citation_label(@run, step["evidence_id"])}</a></li></ol></div></details>
+    </div>
+  </section>
+
+  <section class="review-section" aria-labelledby="decision-title">
+    <div class="section-heading"><div class="heading-group"><span class="step" aria-hidden="true">03</span><h2 id="decision-title">Your decision</h2></div></div>
+    <%= if @run.state == "review_required" do %>
+      <p class="section-lede">Choose only after inspecting the evidence. No record is selected for you.</p>
+      <form :if={eligible(@run) != []} id="accept-form" action={path(@run, "/decide")} method="post"><.tokens run={@run} csrf_token={@csrf_token} /><input type="hidden" name="decision" value="accept" /><fieldset><legend>Select one record to accept</legend><div class="choice" :for={candidate <- eligible(@run)}><input type="radio" id={"select-#{candidate["lei"]}"} name="selected_lei" value={candidate["lei"]} required /><label for={"select-#{candidate["lei"]}"}><strong>{candidate["legal_name"]}</strong><span class="identifier">{candidate["lei"]}</span></label></div></fieldset><button class="button primary" type="submit">Accept selected record</button></form>
+      <p :if={eligible(@run) == []} class="notice">No record is available for selection under this edition's rules. AI cannot override a blocked record.</p>
+      <form class="reject-form" action={path(@run, "/decide")} method="post"><.tokens run={@run} csrf_token={@csrf_token} /><input type="hidden" name="decision" value="reject" /><button class="button secondary" type="submit">Reject this review</button></form>
+      <p class="hint">Leaving this page keeps the review unresolved.</p>
+    <% else %>
+      <%= if @run.decision do %>
+        <div class="decision-record"><p class="eyebrow">Recorded human decision</p><h3>{if @run.decision["action"] == "accept", do: "You accepted #{candidate_name(@run, @run.decision["selected_lei"])}", else: "You rejected this review."}</h3><p>{date(@run.decision["at"])}</p><p :if={@run.decision["selected_lei"]} class="identifier">{@run.decision["selected_lei"]}</p></div>
+      <% else %>
+        <p class="section-lede">No human decision is recorded.{if pending?(@run), do: " Decisions become available when this run is ready for review.", else: " This run is closed."}</p>
+      <% end %>
+    <% end %>
+  </section>
+
+  <section class="review-section manage-section" aria-labelledby="manage-title"><h2 id="manage-title">Keep an inspectable record</h2><p class="section-lede">Download the evidence, source versions and current decision as JSON. Unresolved and failed states stay explicit.</p><a class="button secondary" href={path(@run, "/export")} download>Download review JSON <span aria-hidden="true">↓</span></a>
+    <details class="run-details"><summary>Run details and review history</summary><div class="details-body"><dl class="detail-list"><div><dt>Run ID</dt><dd class="identifier">{@run.id}</dd></div><div><dt>Revision</dt><dd>{@run.revision}</dd></div><div><dt>Evidence SHA-256</dt><dd class="identifier">{value(@run.evidence_hash)}</dd></div><div><dt>Replayed from</dt><dd class="identifier">{value(@run.replay_of)}</dd></div><div><dt>Expires</dt><dd>{date(@run.expires_at)}</dd></div></dl><ol class="history"><li :for={event <- @run.events}><span class="identifier">{event.kind}</span><span>{date(event.at)}</span></li></ol><p>A hash identifies the reviewed bytes. It is not a certificate, signature or tamper-proof audit.</p></div></details>
+    <details :if={evidence?(@run)}><summary>Replay saved evidence</summary><div class="details-body"><p>Create a new unresolved review from this saved snapshot. No new GLEIF lookup. The earlier decision stays unchanged. AI remains optional.</p><form action={path(@run, "/replay")} method="post"><input type="hidden" name="_csrf_token" value={@csrf_token} /><button class="button secondary" type="submit">Replay saved evidence</button></form></div></details>
+    <details class="delete-details"><summary>Delete review</summary><div class="details-body"><h3>Delete this review of {@run.record["name"]}?</h3><p class="identifier">Run {@run.id}</p><p>This removes the review, saved evidence and queued work. Late results cannot restore it. Exported copies are not removed. Provider backups and forensic disk erasure are not covered.</p><p>Close this disclosure to keep the run.</p><form action={path(@run, "/delete")} method="post"><input type="hidden" name="_csrf_token" value={@csrf_token} /><button class="button danger" type="submit">Delete this review</button></form></div></details>
+  </section>
+
+  <aside id="review-policy" class="policy-note" aria-labelledby="policy-title"><h2 id="policy-title">Limits of this review</h2><p>GLEIF evidence identifies legal entities. A matching LEI does not establish creditworthiness, sanctions clearance or KYC approval. Conflicting countries, registration identifiers or LEIs require human review. Every proposed match requires your explicit decision; no records are merged and no financial actions are taken.</p><p>Run data becomes unavailable at the expiry time above. Physical cleanup runs while the application is running, including on startup. Downloaded copies remain under your control.</p></aside>
+</.shell>

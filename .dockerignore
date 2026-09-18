@@ -1,0 +1,15 @@
+*
+!Dockerfile
+!mix.exs
+!mix.lock
+!config/
+!config/**
+!lib/
+!lib/**
+!priv/
+!priv/**
+!agent/
+!agent/main.py
+!deploy/
+!deploy/**
+priv/agent/

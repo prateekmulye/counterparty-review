@@ -1,0 +1,10 @@
+[
+  {"id":"exact-name","record":{"name":"Siemens Aktiengesellschaft","country":"DE","lei":null,"registration_id":null},"expected":{"status":"proposed","selected_lei":"W38RGI023J3WT1HWRP32"}},
+  {"id":"abbreviated-name","record":{"name":"Siemens AG","country":"DE","lei":null,"registration_id":null},"expected":{"status":"proposed","selected_lei":"W38RGI023J3WT1HWRP32"}},
+  {"id":"exact-lei","record":{"name":"Siemens Aktiengesellschaft","country":"DE","lei":"W38RGI023J3WT1HWRP32","registration_id":null},"expected":{"status":"proposed","selected_lei":"W38RGI023J3WT1HWRP32"}},
+  {"id":"wrong-country","record":{"name":"Siemens Aktiengesellschaft","country":"FR","lei":"W38RGI023J3WT1HWRP32","registration_id":null},"expected":{"status":"conflict","selected_lei":null}},
+  {"id":"identifier-conflict","record":{"name":"Siemens Aktiengesellschaft","country":"DE","lei":"52990021T5LVTQOGSU18","registration_id":null},"expected":{"status":"conflict","selected_lei":null}},
+  {"id":"not-in-snapshot","record":{"name":"Unlisted Example Corporation","country":"DE","lei":null,"registration_id":null},"candidates":[],"expected":{"status":"abstain","selected_lei":null}},
+  {"id":"synthetic-lapsed-registration","record":{"name":"Siemens Aktiengesellschaft","country":"DE","lei":"W38RGI023J3WT1HWRP32","registration_id":null},"mutate_first":{"registration_status":"LAPSED"},"expected":{"status":"abstain","selected_lei":null}},
+  {"id":"synthetic-inactive-entity","record":{"name":"Siemens Aktiengesellschaft","country":"DE","lei":"W38RGI023J3WT1HWRP32","registration_id":null},"mutate_first":{"entity_status":"INACTIVE"},"expected":{"status":"abstain","selected_lei":null}}
+]

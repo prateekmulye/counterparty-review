@@ -1,0 +1,61 @@
+<.shell title="New review">
+  <section class="intro">
+    <p class="eyebrow">A clearer record, a considered decision</p>
+    <h1>Know the company<br /><em>behind the name.</em></h1>
+    <p class="lede">Match a company record to public registry evidence.<br class="desktop-break" /> Inspect the facts. Keep the decision yours.</p>
+  </section>
+
+  <div class="entry-grid">
+    <section class="paper entry-form" aria-labelledby="entry-title">
+      <div class="section-heading"><span class="step" aria-hidden="true">01</span><h2 id="entry-title">Start with a company</h2></div>
+      <div :if={@errors != []} class="notice error" role="alert" aria-labelledby="errors-title">
+        <h3 id="errors-title">Review could not start</h3>
+        <ul><li :for={error <- @errors}><a href={"##{error_target(error)}"}>{error}</a></li></ul>
+      </div>
+      <form id="review-form" action="/reviews" method="post">
+        <input type="hidden" name="_csrf_token" value={@csrf_token} />
+        <input type="hidden" name="idempotency_key" value={@idempotency_key} />
+        <div class="field">
+          <label for="name">Company name <span>Required</span></label>
+          <input id="name" name="name" type="text" value={@values["name"] || ""} required autocomplete="off" aria-describedby="name-hint name-error" aria-invalid={if field_error(@errors, "name"), do: "true", else: "false"} />
+          <p id="name-hint" class="hint">Use the public legal name of an incorporated company.</p>
+          <p id="name-error" class="field-error">{field_error(@errors, "name")}</p>
+        </div>
+        <div class="field">
+          <label for="country">Jurisdiction country <span>Required</span></label>
+          <select id="country" name="country" required aria-describedby="country-hint country-error" aria-invalid={if field_error(@errors, "country"), do: "true", else: "false"}>
+            <option value="">Choose a country</option>
+            <option :for={{code, label} <- @countries} value={code} selected={@values["country"] == code}>{label}</option>
+          </select>
+          <p id="country-hint" class="hint">Country of incorporation or legal jurisdiction, not mailing address.</p>
+          <p id="country-error" class="field-error">{field_error(@errors, "country")}</p>
+        </div>
+        <div class="field">
+          <label for="lei">Legal Entity Identifier <span>Optional</span></label>
+          <input id="lei" class="identifier" name="lei" type="text" value={@values["lei"] || ""} autocomplete="off" autocapitalize="characters" spellcheck="false" aria-describedby="lei-hint lei-error" aria-invalid={if field_error(@errors, "lei"), do: "true", else: "false"} />
+          <p id="lei-hint" class="hint">An LEI has 20 letters and digits. If supplied, it constrains this lookup.</p>
+          <p id="lei-error" class="field-error">{field_error(@errors, "lei")}</p>
+        </div>
+        <div class="before-submit"><p><strong>Public company records only. No personal data.</strong></p><p>Coverage is limited to selected incorporated forms in Germany, Austria, the Netherlands and Ireland.</p><p>{if hosted?(), do: "Your query is sent to GLEIF. An AI request sends the saved public evidence to Cloudflare Workers AI. Review data is stored in our database for up to 24 hours; you can delete it earlier.", else: "Your query is sent to GLEIF. AI runs locally only when you request it. Review data is stored locally for up to 24 hours."}</p></div>
+        <button class="button primary" type="submit">Find company records <span aria-hidden="true">↗</span></button>
+        <p class="hint action-note">Starts a registry lookup. No AI call.</p>
+      </form>
+    </section>
+
+    <aside class="entry-aside" aria-label="Source coverage">
+      <p class="eyebrow">From evidence to judgment</p>
+      <ol class="process"><li><span>01</span><div><h3>Find public records</h3><p>One bounded GLEIF lookup. Source facts stay attached to the review.</p></div></li><li><span>02</span><div><h3>Inspect the differences</h3><p>Read names, identifiers and statuses. Request AI assistance if useful.</p></div></li><li><span>03</span><div><h3>Leave a clear decision</h3><p>Accept a selectable record, reject the review, or leave it unresolved.</p></div></li></ol>
+      <div class="scope-note"><p class="eyebrow">Current source coverage</p><h3>A deliberately narrow edition.</h3><p>Selected incorporated legal forms in Germany, Austria, the Netherlands and Ireland are supported. Other forms are excluded.</p><p>This lookup is not exhaustive. A missing record does not establish that a company does not exist.</p></div>
+    </aside>
+  </div>
+
+  <section id="recent" class="recent-section" aria-labelledby="recent-title">
+    <div class="section-heading"><h2 id="recent-title">Your recent reviews</h2><span class="subtle">Available for up to 24 hours</span></div>
+    <div :if={@runs == []} class="empty-state"><p>No reviews in this browser yet.</p><span>Your first review will appear here after submission.</span></div>
+    <ul :if={@runs != []} class="recent-list">
+      <li :for={run <- @runs}><a href={path(run)}><span class="recent-identity"><strong>{run.name}</strong><span>{country(run.country)} · {date(run.inserted_at)}</span></span><span class="status">{state(run.state)}</span><span class="row-arrow" aria-hidden="true">↗</span></a></li>
+    </ul>
+  </section>
+
+  <details class="data-details"><summary>Data handling and limitations</summary><div class="details-body"><p>A signed browser cookie keeps your reviews separate from other visitors. Clearing it removes your access; there is no account recovery. Run data becomes unavailable after 24 hours. Physical cleanup runs while this application is running, including on startup. Deleting a run removes its active database rows. It does not erase exported copies or guarantee deletion from provider backups or forensic disk erasure.</p><p>GLEIF data is provided under <a href="https://www.gleif.org/en/meta/lei-data-terms-of-use" rel="noreferrer">CC0 terms</a>, without a guarantee of accuracy, completeness or continuous availability. This tool does not certify identity or perform credit, sanctions or KYC clearance.</p></div></details>
+</.shell>
