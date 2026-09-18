@@ -175,19 +175,16 @@ def main():
                     limits = item["HostConfig"]
                     observed["limits"] = {key: limits[key] for key in ("Memory", "MemorySwap", "NanoCpus", "PidsLimit")}
                     if state["Running"]:
-                        code = """import json,pathlib
-p=pathlib.Path('/sys/fs/cgroup')
-def counters(name,keys):
-    data=dict(line.split() for line in (p/name).read_text().splitlines())
-    return {key:int(data[key]) for key in keys if key in data}
-print(json.dumps({'memory_current_bytes':int((p/'memory.current').read_text()),
- 'memory_peak_bytes':int((p/'memory.peak').read_text()),
- 'memory_events':counters('memory.events',('low','high','max','oom','oom_kill','oom_group_kill')),
- 'cpu_stat':counters('cpu.stat',('usage_usec','user_usec','system_usec','nr_periods','nr_throttled','throttled_usec')),
- 'pids_current':int((p/'pids.current').read_text()),
- 'pids_events':counters('pids.events',('max',))}))
-"""
-                        observed["metrics"] = json.loads(docker("exec", item["Id"], "python", "-B", "-c", code, timeout=3))
+                        lines = docker("exec", item["Id"], "cat", "/sys/fs/cgroup/memory.current",
+                                       "/sys/fs/cgroup/memory.peak", "/sys/fs/cgroup/memory.events",
+                                       timeout=3).splitlines()
+                        need(len(lines) >= 2)
+                        events = dict(line.split() for line in lines[2:])
+                        observed["metrics"] = {
+                            "memory_current_bytes": int(lines[0]), "memory_peak_bytes": int(lines[1]),
+                            "memory_events": {key: int(events[key]) for key in
+                                              ("low", "high", "max", "oom", "oom_kill", "oom_group_kill")
+                                              if key in events}}
             except Exception as error:
                 observed["diagnostics_error"] = error_category(error)
         return observations
